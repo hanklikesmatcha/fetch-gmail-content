@@ -4,16 +4,18 @@ import os.path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import base64
+import re
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/gmail/v1/users/userId/messages']
+
 
 def main():
     """Shows basic usage of the Gmail API.
     Lists the user's Gmail labels.
     """
-    emails = []
-    sender = None
+
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -36,12 +38,21 @@ def main():
     service = build('gmail', 'v1', credentials=creds)
 
     # Call the Gmail API
-    sender = service.users().messages().list(userId='me', q="from='immigration@customer.immigration.govt.nz'").execute()
+    sent_emails = service.users().messages().list(userId='me', q="to='hank@sharesies.co.nz'").execute()
 
-    if not sender:
+    if not sent_emails:
         print('No sender found')
-    contents = service.users().messages().get(userId='me', id=sender['messages'][0]['id']).execute()
-    print(contents['snippet'])
+
+    for email in sent_emails['messages']:
+        raw_contents = service.users().messages().get(userId='me', id=email['id']).execute()
+        encoded_contents = raw_contents['payload']['parts'][0]['body']['data']
+        decoded_contents = base64.urlsafe_b64decode(encoded_contents).decode('utf-8')
+        result = re.search('your Gift Card Code is (.*)', decoded_contents).group(1)
+        print(result)
+        if "36592B82958GGF67"  not in result:
+            print("no gift card code found")
+
+
 
 if __name__ == '__main__':
     main()
