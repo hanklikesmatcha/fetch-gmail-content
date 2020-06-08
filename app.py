@@ -6,9 +6,14 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import base64
 import re
+from openpyxl import Workbook, load_workbook
 
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/gmail/v1/users/userId/messages']
+wb = Workbook()
+ws1 = wb.active
+file_name = "gift-codes.xlsx"
+ws1.title = 'Gift Codes'
 
 
 def main():
@@ -43,15 +48,15 @@ def main():
     if not sent_emails:
         print('No sender found')
 
-    for email in sent_emails['messages']:
+    for index, email in enumerate(sent_emails['messages']):
         raw_contents = service.users().messages().get(userId='me', id=email['id']).execute()
         encoded_contents = raw_contents['payload']['parts'][0]['body']['data']
         decoded_contents = base64.urlsafe_b64decode(encoded_contents).decode('utf-8')
         result = re.search('your Gift Card Code is (.*)', decoded_contents).group(1)
-        print(result)
-        if "36592B82958GGF67"  not in result:
+        if len(result) != 17:
             print("no gift card code found")
-
+        ws1.cell(row=index+1, column=1, value=result)
+        wb.save(file_name)
 
 
 if __name__ == '__main__':
