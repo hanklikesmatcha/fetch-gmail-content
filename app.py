@@ -45,7 +45,7 @@ def main():
     # Call the Gmail API
     sent_emails = service.users().messages().list(userId='me', q="to='hank@sharesies.co.nz'").execute()
 
-    if not sent_emails:
+    if len(sent_emails['messages']) < 1:
         print('No sender found')
 
     for index, email in enumerate(sent_emails['messages']):
