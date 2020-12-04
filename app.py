@@ -2,6 +2,7 @@ from __future__ import print_function
 import pickle
 import os.path
 import sys
+import argparse
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -18,7 +19,8 @@ file_name = "gift-codes"
 ws1.title = 'Gift Codes'
 
 
-def main(starts_from: str):
+def main(sender:str, starts_from:str):
+    # 'hello@thegoodregistry.com'
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -40,12 +42,12 @@ def main(starts_from: str):
 
     service = build('gmail', 'v1', credentials=creds)
 
-    start = starts_from[:4] + "-" + starts_from[4:5] + "-" + starts_from[6:]
+    start = starts_from[:4] + "-" + starts_from[4:6] + "-" + starts_from[6:]
     timestamp = str(datetime.strptime(start, '%Y-%m-%d').date() - timedelta(1)).replace('-', '/')
     # Call the Gmail API
     mail_group = service.users().messages().list(
         userId='me', 
-        q="from='hello@thegoodregistry.com' after: {}".format(timestamp)).execute()
+        q="from='{}' after: {}".format(sender, timestamp)).execute()
     count = 0
 
     gift_codes = []
@@ -65,7 +67,7 @@ def main(starts_from: str):
                 count -= 1
             file = wb.save(file_name + "{}.xlsx".format(date.today()))
 
-            print(len(codes))
+            print("total orders {}".format(len(codes)))
         return count
 
     while next_page:
@@ -89,10 +91,13 @@ def main(starts_from: str):
             gift_codes.append(matched_number)
         mail_group = service.users().messages().list(
         userId='me', 
-        q="from='hello@thegoodregistry.com' after: {}".format(timestamp),
+        q="from='{}' after: {}".format(sender, timestamp),
         pageToken=mail_group['nextPageToken']).execute() 
-        
+    
+parser = argparse.ArgumentParser(description='you may search based on sender and timestamp')
+parser.add_argument('sender', type=str, help='Sender email')
+parser.add_argument('starts_from', type=str, help='Day after, format: yyyymmdd')
+args=parser.parse_args()
 
 if __name__ == '__main__':
-    starts_from = sys.argv[1]
-    main(starts_from)
+    main(args.sender, args.starts_from)
