@@ -1,26 +1,24 @@
 from __future__ import print_function
 import pickle
 import os.path
+import sys
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import base64
 import re
+from datetime import date, timedelta, datetime
 from openpyxl import Workbook, load_workbook
 
 # If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/gmail/v1/users/userId/messages']
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 wb = Workbook()
 ws1 = wb.active
-file_name = "gift-codes.xlsx"
+file_name = "gift-codes"
 ws1.title = 'Gift Codes'
 
 
-def main():
-    """Shows basic usage of the Gmail API.
-    Lists the user's Gmail labels.
-    """
-
+def main(starts_from: str):
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -42,22 +40,59 @@ def main():
 
     service = build('gmail', 'v1', credentials=creds)
 
+    start = starts_from[:4] + "-" + starts_from[5:7] + "-" + starts_from[8:]
+    timestamp = str(datetime.strptime(start, '%Y-%m-%d').date() - timedelta(1)).replace('-', '/')
     # Call the Gmail API
-    sent_emails = service.users().messages().list(userId='me', q="to='hank@sharesies.co.nz'").execute()
+    mail_group = service.users().messages().list(
+        userId='me', 
+        q="from='hello@thegoodregistry.com' after: {}".format(timestamp)).execute()
+    count = 0
 
-    if len(sent_emails['messages']) < 1:
+    gift_codes = []
+
+    if len(mail_group['messages']) < 1:
         print('No sender found')
+    
+    next_page = True
 
-    for index, email in enumerate(sent_emails['messages']):
-        raw_contents = service.users().messages().get(userId='me', id=email['id']).execute()
-        encoded_contents = raw_contents['payload']['parts'][0]['body']['data']
-        decoded_contents = base64.urlsafe_b64decode(encoded_contents).decode('utf-8')
-        result = re.search('your Gift Card Code is (.*)', decoded_contents).group(1)
-        if len(result) != 17:
-            print("no gift card code found")
-        ws1.cell(row=index+1, column=1, value=result)
-        wb.save(file_name)
+    def generate_file(count: int, codes: []):
+        while count != 0:
+            if count != len(codes):
+                print("Number doesn't match with the total orders")
+                return 
+            for index, code in enumerate(gift_codes):
+                ws1.cell(row=index+1, column=1, value=code)
+                count -= 1
+            file = wb.save(file_name + "{}.xlsx".format(date.today()))
 
+            print(len(codes))
+        return count
+
+    while next_page:
+        if next_page is False:
+            break  
+
+        next_page = False if mail_group.get('nextPageToken') is None else True
+
+        for index, email in enumerate(mail_group['messages']):
+            raw_contents = service.users().messages().get(userId='me', id=email['id']).execute()
+            encoded_contents = raw_contents['payload']['parts'][0]['body']['data']
+            decoded_contents = base64.urlsafe_b64decode(encoded_contents).decode('utf-8')
+            match = re.search("and your Gift Card Code is\s+", decoded_contents)
+            if match is None:
+                generate_file(count=count, codes=gift_codes)
+                return 
+            matched_number = decoded_contents[match.end():]
+            if len(matched_number) != 16:
+                print("no gift card code found")
+            count += 1
+            gift_codes.append(matched_number)
+        mail_group = service.users().messages().list(
+        userId='me', 
+        q="from='hello@thegoodregistry.com' after: {}".format(timestamp),
+        pageToken=mail_group['nextPageToken']).execute() 
+        
 
 if __name__ == '__main__':
-    main()
+    starts_from = sys.argv[1]
+    main(starts_from)
