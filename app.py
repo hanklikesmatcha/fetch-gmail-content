@@ -40,7 +40,7 @@ def main(starts_from: str):
 
     service = build('gmail', 'v1', credentials=creds)
 
-    start = starts_from[:4] + "-" + starts_from[5:7] + "-" + starts_from[8:]
+    start = starts_from[:4] + "-" + starts_from[4:5] + "-" + starts_from[6:]
     timestamp = str(datetime.strptime(start, '%Y-%m-%d').date() - timedelta(1)).replace('-', '/')
     # Call the Gmail API
     mail_group = service.users().messages().list(
