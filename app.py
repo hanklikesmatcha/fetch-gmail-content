@@ -14,9 +14,9 @@ from openpyxl import Workbook, load_workbook
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 wb = Workbook()
-ws1 = wb.active
+ws = wb.active
 file_name = "gift-codes"
-ws1.title = "Gift Codes"
+ws.title = "Gift Codes"
 
 
 def main(sender: str, starts_from: str):
@@ -67,7 +67,7 @@ def main(sender: str, starts_from: str):
                 print("Number doesn't match with the total orders")
                 return
             for index, code in enumerate(gift_codes):
-                ws1.cell(row=index + 1, column=1, value=code)
+                ws.append([code])
                 count -= 1
             file = wb.save(file_name + "{}.xlsx".format(date.today()))
 
@@ -78,8 +78,6 @@ def main(sender: str, starts_from: str):
         if next_page is False:
             break
 
-        next_page = False if mail_group.get("nextPageToken") is None else True
-
         for index, email in enumerate(mail_group["messages"]):
             raw_contents = (
                 service.users().messages().get(userId="me", id=email["id"]).execute()
@@ -89,24 +87,30 @@ def main(sender: str, starts_from: str):
                 "utf-8"
             )
             match = re.search("and your Gift Card Code is\s+", decoded_contents)
+
             if match is None:
-                generate_file(count=count, codes=gift_codes)
                 return
+
             matched_number = decoded_contents[match.end() :]
             if len(matched_number) != 16:
                 print("no gift card code found")
             count += 1
             gift_codes.append(matched_number)
-        mail_group = (
-            service.users()
-            .messages()
-            .list(
-                userId="me",
-                q="from='{}' after: {}".format(sender, timestamp),
-                pageToken=mail_group["nextPageToken"],
+
+        if mail_group.get('nextPageToken'):
+            mail_group = (
+                service.users()
+                .messages()
+                .list(
+                    userId="me",
+                    q="from='{}' after: {}".format(sender, timestamp),
+                    pageToken=mail_group["nextPageToken"],
+                )
+                .execute()
             )
-            .execute()
-        )
+        else:
+            next_page = False 
+            generate_file(count=count, codes=gift_codes)
 
 
 parser = argparse.ArgumentParser(
