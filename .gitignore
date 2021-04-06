@@ -1,4 +1,5 @@
 credentials.json
+venv
 token.pickle
 *.xlsx
 .DS_Store

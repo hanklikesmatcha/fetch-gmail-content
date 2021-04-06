@@ -110,6 +110,7 @@ def main(sender: str, starts_from: str):
             )
         else:
             next_page = False 
+            print("estimated:{}".format(count))
             generate_file(count=count, codes=gift_codes)
 
 
