@@ -19,7 +19,6 @@ ws.title = "Gift Codes"
 
 
 def generate_file(count: int, codes: []):
-    print("estimated:{}".format(count))
     while count != 0:
         if count != len(codes):
             print("Number doesn't match with the total orders")
@@ -28,8 +27,30 @@ def generate_file(count: int, codes: []):
             ws.append([code])
             count -= 1
         wb.save(file_name + "{}.xlsx".format(date.today()))
-        print("total orders {}".format(len(codes)))
+    print(count)
     return count
+
+
+def extract_mails(threads: list, service: build):
+    count = 0
+    gift_codes: list = []
+    for index, email in enumerate(threads):
+        raw_contents = (
+            service.users().messages().get(userId="me", id=email["id"]).execute()
+        )["payload"]["parts"][0]["body"]["data"]
+        decoded_contents = base64.urlsafe_b64decode(raw_contents).decode("utf-8")
+        match = re.search("and your Gift Card Code is\s+", decoded_contents)
+
+        if match is None:
+            generate_file(count=count, codes=gift_codes)
+
+        else:
+            matched_number = decoded_contents[match.end() :]
+            if len(matched_number) != 16:
+                print("no gift card code found")
+            count += 1
+            gift_codes.append(matched_number)
+    return count, gift_codes
 
 
 def main(sender: str, starts_from: str):
@@ -64,39 +85,24 @@ def main(sender: str, starts_from: str):
         .list(userId="me", q="from='{}' after: {}".format(sender, timestamp))
         .execute()
     )
-    count = 0
 
     if len(mail_group["messages"]) < 1:
         print("No sender found")
 
-    gift_codes: list = []
-    if not mail_group.get("nextPageToken"):
-        mail_group = (
-            service.users()
-            .messages()
-            .list(
-                userId="me",
-                q="from='{}' after: {}".format(sender, timestamp),
-                pageToken=mail_group.get("nextPageToken"),
-            )
-            .execute()
-        )["messages"]
-        for index, email in enumerate(mail_group):
-            raw_contents = (
-                service.users().messages().get(userId="me", id=email["id"]).execute()
-            )["payload"]["parts"][0]["body"]["data"]
-            decoded_contents = base64.urlsafe_b64decode(raw_contents).decode("utf-8")
-            match = re.search("and your Gift Card Code is\s+", decoded_contents)
-
-            if match is None:
-                generate_file(count=count, codes=gift_codes)
-
-            else:
-                matched_number = decoded_contents[match.end() :]
-                if len(matched_number) != 16:
-                    print("no gift card code found")
-                count += 1
-                gift_codes.append(matched_number)
+    threads = (
+        service.users()
+        .messages()
+        .list(
+            userId="me",
+            q="from='{}' after: {}".format(sender, timestamp),
+            # pageToken=mail_group.get("nextPageToken"),
+            pageToken="",
+            # Make this blank to blank to get mails from another mail group
+        )
+        .execute()
+    )["messages"]
+    count, gift_codes = extract_mails(threads=threads, service=service)
+    return generate_file(count=count, codes=gift_codes)
 
 
 parser = argparse.ArgumentParser(
